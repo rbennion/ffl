@@ -158,7 +158,7 @@ def main():
         st.info(f"🔍 **Filtered by: {', '.join(filters_applied)}** • Clear selections above to see all data")
     
     # Main dashboard tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["🎯 Position Analysis", "📊 Round Analysis", "👥 Team Analysis", "🔍 Player Lookup"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🎯 Position Analysis", "📊 Round Analysis", "🔢 Pick Analysis", "👥 Team Analysis", "🔍 Player Lookup"])
     
     with tab1:
         position_analysis_tab(filtered_df)
@@ -167,9 +167,12 @@ def main():
         round_analysis_tab(filtered_df)
     
     with tab3:
-        team_analysis_tab(filtered_df)
+        pick_analysis_tab(filtered_df)
     
     with tab4:
+        team_analysis_tab(filtered_df)
+    
+    with tab5:
         player_lookup_tab(df)
 
 
@@ -636,6 +639,316 @@ def round_analysis_tab(df):
         fig_scarcity.update_layout(height=400)
         st.plotly_chart(fig_scarcity, use_container_width=True)
     
+def pick_analysis_tab(df):
+    """Pick analysis tab for draft strategy"""
+    st.header("🔢 Pick Analysis - Draft Strategy Tool")
+    st.markdown("**Analyze what happened at any pick number and see position scarcity in real-time**")
+    
+    # Pick selector
+    max_pick = df['overall_pick'].max()
+    selected_pick = st.selectbox(
+        "Select Pick Number to Analyze", 
+        range(1, max_pick + 1),
+        index=0,  # Default to Pick 1
+        help="Choose a pick number to see what picks were made and analyze position scarcity"
+    )
+    
+    # Calculate how many years are in the filtered data for averaging
+    years_in_data = df['year'].nunique()
+    
+    # Calculate data for the selected pick (using filtered data)
+    pick_data = df[df['overall_pick'] == selected_pick].sort_values('year')
+    
+    # Data through the selected pick (cumulative) - using filtered data
+    data_through_pick = df[df['overall_pick'] <= selected_pick]
+    
+    # Data remaining after this pick - using filtered data
+    data_remaining = df[df['overall_pick'] > selected_pick]
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Position breakdown for this pick (strategy-focused)
+        st.subheader(f"📋 Pick #{selected_pick} Position Breakdown")
+        if not pick_data.empty:
+            # Position summary
+            pick_summary = pick_data['position'].value_counts().sort_index()
+            
+            if years_in_data > 1:
+                # Show averages when multiple years selected
+                st.markdown(f"**Pick frequency (across {years_in_data} years):**")
+                
+                # Create heat map color coding based on pick frequency
+                # Get all possible positions from the full dataset
+                all_positions = sorted(df['position'].unique())
+                max_picks = max(pick_summary.values) if len(pick_summary) > 0 else 1
+                
+                # Create columns for heat map display (always show all positions)
+                cols = st.columns(len(all_positions))
+                
+                for idx, pos in enumerate(all_positions):
+                    count = pick_summary.get(pos, 0)  # Get count or 0 if position not picked
+                    pick_rate = count / years_in_data * 100
+                    # Calculate color intensity (0-1 scale)
+                    intensity = count / max_picks if max_picks > 0 else 0
+                    
+                    # Color scale from light blue to dark red
+                    if intensity == 0:
+                        color = "#f0f0f0"  # Light gray for zero
+                    elif intensity <= 0.2:
+                        color = "#e3f2fd"  # Very light blue
+                    elif intensity <= 0.4:
+                        color = "#bbdefb"  # Light blue
+                    elif intensity <= 0.6:
+                        color = "#90caf9"  # Medium blue
+                    elif intensity <= 0.8:
+                        color = "#42a5f5"  # Dark blue
+                    else:
+                        color = "#1976d2"  # Very dark blue
+                    
+                    # Display in columns with colored background
+                    with cols[idx % 6]:
+                        st.markdown(f"""
+                        <div style="
+                            background-color: {color}; 
+                            padding: 10px; 
+                            border-radius: 8px; 
+                            text-align: center;
+                            margin: 2px;
+                            border: 1px solid #ddd;
+                        ">
+                            <strong style="color: {'white' if intensity > 0.6 else 'black'};">{pos}</strong><br>
+                            <span style="color: {'white' if intensity > 0.6 else 'black'};">{pick_rate:.0f}%</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                
+            else:
+                # Show totals when single year selected
+                st.markdown(f"**Position picked at Pick #{selected_pick}:**")
+                
+                # Create heat map color coding for single year
+                # Get all possible positions from the full dataset
+                all_positions = sorted(df['position'].unique())
+                max_picks = max(pick_summary.values) if len(pick_summary) > 0 else 1
+                
+                # Create columns for heat map display (always show all positions)
+                cols = st.columns(len(all_positions))
+                
+                for idx, pos in enumerate(all_positions):
+                    count = pick_summary.get(pos, 0)  # Get count or 0 if position not picked
+                    # Calculate color intensity (0-1 scale)
+                    intensity = count / max_picks if max_picks > 0 else 0
+                    
+                    # Color scale from light blue to dark red
+                    if intensity == 0:
+                        color = "#f0f0f0"  # Light gray for zero
+                    elif intensity <= 0.2:
+                        color = "#e3f2fd"  # Very light blue
+                    elif intensity <= 0.4:
+                        color = "#bbdefb"  # Light blue
+                    elif intensity <= 0.6:
+                        color = "#90caf9"  # Medium blue
+                    elif intensity <= 0.8:
+                        color = "#42a5f5"  # Dark blue
+                    else:
+                        color = "#1976d2"  # Very dark blue
+                    
+                    # Display in columns with colored background
+                    with cols[idx % 6]:
+                        st.markdown(f"""
+                        <div style="
+                            background-color: {color}; 
+                            padding: 10px; 
+                            border-radius: 8px; 
+                            text-align: center;
+                            margin: 2px;
+                            border: 1px solid #ddd;
+                        ">
+                            <strong style="color: {'white' if intensity > 0.6 else 'black'};">{pos}</strong><br>
+                            <span style="color: {'white' if intensity > 0.6 else 'black'};">{'Yes' if count > 0 else 'No'}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+            
+            # Visual position breakdown
+            if years_in_data > 1:
+                # Create data for all positions, including those with 0 picks
+                pick_rate_data = []
+                for pos in all_positions:
+                    count = pick_summary.get(pos, 0)
+                    pick_rate_data.append(count / years_in_data * 100)
+                
+                pos_data = pd.DataFrame({
+                    'Position': all_positions,
+                    'Pick_Rate': pick_rate_data
+                })
+                fig_pick_pos = px.bar(
+                    pos_data,
+                    x='Position',
+                    y='Pick_Rate',
+                    title=f"Pick #{selected_pick} - Position Pick Rate",
+                    color='Position',
+                    labels={'Pick_Rate': 'Pick Rate (%)'}
+                )
+            else:
+                # Create data for all positions, including those with 0 picks
+                picks_data = []
+                for pos in all_positions:
+                    count = pick_summary.get(pos, 0)
+                    picks_data.append(count)
+                
+                pos_data = pd.DataFrame({
+                    'Position': all_positions,
+                    'Picked': picks_data
+                })
+                fig_pick_pos = px.bar(
+                    pos_data,
+                    x='Position',
+                    y='Picked',
+                    title=f"Pick #{selected_pick} - Position Selection",
+                    color='Position',
+                    labels={'Picked': 'Position Selected (1=Yes, 0=No)'}
+                )
+            
+            fig_pick_pos.update_layout(height=300, showlegend=False)
+            st.plotly_chart(fig_pick_pos, use_container_width=True)
+            
+            # Show specific picks made at this position
+            if not pick_data.empty:
+                st.subheader(f"👤 Players Selected at Pick #{selected_pick}")
+                pick_details = pick_data[['year', 'first_name', 'last_name', 'position', 'team_name']].copy()
+                pick_details['Player'] = pick_details['first_name'] + ' ' + pick_details['last_name']
+                pick_details = pick_details[['year', 'Player', 'position', 'team_name']].rename(columns={
+                    'year': 'Year',
+                    'position': 'Position', 
+                    'team_name': 'Team'
+                })
+                st.dataframe(pick_details, use_container_width=True, hide_index=True)
+        else:
+            st.info(f"No data available for Pick #{selected_pick}")
+    
+    with col2:
+        # Strategic insights for the pick
+        st.subheader(f"🎯 Strategic Insights for Pick #{selected_pick}")
+        
+        # We'll calculate scarcity data first for the insights
+        taken_counts = data_through_pick['position'].value_counts()
+        remaining_counts = data_remaining['position'].value_counts()
+        
+        # Create comprehensive scarcity dataframe
+        all_positions = df['position'].unique()
+        scarcity_data = []
+        
+        for pos in sorted(all_positions):
+            taken = taken_counts.get(pos, 0)
+            remaining = remaining_counts.get(pos, 0)
+            total = taken + remaining
+            pct_taken = (taken / total * 100) if total > 0 else 0
+            
+            if years_in_data > 1:
+                # Show averages per year when multiple years selected
+                scarcity_data.append({
+                    'Position': pos,
+                    'Taken (Avg/Year)': round(taken / years_in_data, 1),
+                    'Remaining (Avg/Year)': round(remaining / years_in_data, 1),
+                    'Total (Avg/Year)': round(total / years_in_data, 1),
+                    '% Taken': f"{pct_taken:.1f}%"
+                })
+            else:
+                # Show totals when single year selected
+                scarcity_data.append({
+                    'Position': pos,
+                    'Taken': taken,
+                    'Remaining': remaining,
+                    'Total': total,
+                    '% Taken': f"{pct_taken:.1f}%"
+                })
+        
+        scarcity_df = pd.DataFrame(scarcity_data)
+        
+        # Strategic insights columns
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # Most scarce positions (highest % taken)
+            # Handle different column names for single vs multiple years
+            total_col = 'Total (Avg/Year)' if years_in_data > 1 else 'Total'
+            remaining_col = 'Remaining (Avg/Year)' if years_in_data > 1 else 'Remaining'
+            
+            scarcity_df_sorted = scarcity_df[scarcity_df[total_col] > 0].copy()
+            scarcity_df_sorted['pct_taken_num'] = scarcity_df_sorted['% Taken'].str.replace('%', '').astype(float)
+            scarcity_df_sorted = scarcity_df_sorted.sort_values('pct_taken_num', ascending=False)
+            
+            st.markdown("**🔥 Most Scarce Positions:**")
+            for _, row in scarcity_df_sorted.head(3).iterrows():
+                remaining_val = row[remaining_col]
+                remaining_text = f"{remaining_val:.1f} left" if years_in_data > 1 else f"{remaining_val} left"
+                st.markdown(f"• **{row['Position']}**: {row['% Taken']} taken ({remaining_text})")
+        
+        with col2:
+            # Best value positions (lowest % taken)
+            best_value = scarcity_df_sorted.sort_values('pct_taken_num', ascending=True)
+            st.markdown("**💎 Best Value Positions:**")
+            for _, row in best_value.head(3).iterrows():
+                if row['pct_taken_num'] < 100:  # Don't show completely depleted positions
+                    remaining_val = row[remaining_col]
+                    remaining_text = f"{remaining_val:.1f} left" if years_in_data > 1 else f"{remaining_val} left"
+                    st.markdown(f"• **{row['Position']}**: {row['% Taken']} taken ({remaining_text})")
+        
+        with col3:
+            # Pick context
+            total_picks_so_far = len(data_through_pick)
+            total_picks_remaining = len(data_remaining)
+            
+            st.markdown("**📈 Draft Progress:**")
+            if years_in_data > 1:
+                st.markdown(f"• **Picks completed**: {total_picks_so_far / years_in_data:.0f} (across {years_in_data} years)")
+                st.markdown(f"• **Picks remaining**: {total_picks_remaining / years_in_data:.0f}")
+            else:
+                st.markdown(f"• **Picks completed**: {total_picks_so_far}")
+                st.markdown(f"• **Picks remaining**: {total_picks_remaining}")
+            
+            # Show what typically happens at the next few picks
+            if selected_pick < max_pick:
+                next_picks_data = df[df['overall_pick'].isin(range(selected_pick + 1, min(selected_pick + 4, max_pick + 1)))]
+                if not next_picks_data.empty:
+                    next_pos_counts = next_picks_data['position'].value_counts()
+                    if not next_pos_counts.empty:
+                        top_next_pos = next_pos_counts.index[0]
+                        next_count = next_pos_counts[top_next_pos]
+                        if years_in_data > 1:
+                            st.markdown(f"• **Next picks trend**: {next_count / years_in_data:.1f} {top_next_pos}s in next 3 picks")
+                        else:
+                            st.markdown(f"• **Next picks trend**: {next_count} {top_next_pos}s in next 3 picks")
+    
+    # Position scarcity table section
+    st.subheader(f"📊 Position Scarcity Through Pick #{selected_pick}")
+    st.dataframe(scarcity_df, use_container_width=True, hide_index=True)
+    
+    # Visual representation
+    if not scarcity_df.empty:
+        # Use appropriate column names based on whether we're showing averages or totals
+        if years_in_data > 1:
+            y_cols = ['Taken (Avg/Year)', 'Remaining (Avg/Year)']
+            color_map = {'Taken (Avg/Year)': '#FF6B6B', 'Remaining (Avg/Year)': '#4ECDC4'}
+            y_label = 'Avg Players Per Year'
+        else:
+            y_cols = ['Taken', 'Remaining']
+            color_map = {'Taken': '#FF6B6B', 'Remaining': '#4ECDC4'}
+            y_label = 'Number of Players'
+        
+        fig_scarcity = px.bar(
+            scarcity_df,
+            x='Position',
+            y=y_cols,
+            title=f"Position Availability Through Pick #{selected_pick}",
+            color_discrete_map=color_map,
+            labels={'value': y_label, 'variable': 'Status'}
+        )
+        fig_scarcity.update_layout(height=400)
+        st.plotly_chart(fig_scarcity, use_container_width=True)
+
 def team_analysis_tab(df):
     """Team analysis tab"""
     st.header("👥 Team Analysis")
